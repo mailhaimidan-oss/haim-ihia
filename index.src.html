@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>תהליך רישוי משאיות, סקניה, PDI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;700;800;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0b1020;
+    --bg2:#0f1730;
+    --panel:#141d38;
+    --panel2:#1a2647;
+    --line:rgba(255,255,255,.08);
+    --line2:rgba(255,255,255,.14);
+    --ink:#f4f7ff;
+    --muted:#9aa8c7;
+    --muted2:#6f7ea3;
+    --accent:#4da3ff;
+    --accent2:#38e0c8;
+    --accent-soft:rgba(77,163,255,.14);
+    --warn:#ffb454;
+    --shadow:0 24px 60px rgba(0,0,0,.45);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:'Heebo',-apple-system,'Segoe UI',Arial,sans-serif;
+    background:radial-gradient(1200px 800px at 80% -10%, #16224a 0%, transparent 55%),
+               radial-gradient(1000px 700px at 0% 110%, #10203f 0%, transparent 55%),
+               var(--bg);
+    color:var(--ink);
+    -webkit-font-smoothing:antialiased;
+    overflow:hidden;
+  }
+  #root{height:100vh;width:100vw}
+
+  .deck{position:relative;height:100vh;width:100vw;overflow:hidden}
+
+  /* horizontal sliding track (LTR math, RTL content) */
+  .track{
+    position:absolute;inset:0;
+    display:flex;
+    direction:ltr;
+    transition:transform .55s cubic-bezier(.65,.02,.2,1);
+    will-change:transform;
+  }
+  .slide{
+    position:relative;
+    flex:0 0 100vw;
+    height:100vh;
+    direction:rtl;
+    display:flex;flex-direction:column;
+    padding:8vh 9vw 12vh;
+    overflow:auto;
+  }
+
+  /* progress bar */
+  .progress{
+    position:fixed;top:0;right:0;left:0;height:3px;
+    background:linear-gradient(90deg,var(--accent),var(--accent2));
+    transform-origin:right center;
+    transition:transform .55s cubic-bezier(.65,.02,.2,1);
+    z-index:40;
+  }
+
+  /* kicker / eyebrow */
+  .kicker{
+    display:inline-flex;align-items:center;gap:.6rem;
+    font-weight:700;font-size:clamp(.85rem,1.4vw,1.05rem);
+    letter-spacing:.04em;
+    color:var(--accent2);
+    margin-bottom:2.2vh;
+  }
+  .kicker .dot{width:.55rem;height:.55rem;border-radius:50%;background:var(--accent2);box-shadow:0 0 14px var(--accent2)}
+  .kicker .num{
+    background:var(--accent-soft);color:var(--accent);
+    border:1px solid var(--line2);
+    border-radius:999px;padding:.15rem .8rem;font-size:.85em;
+  }
+
+  h1.title{
+    font-weight:900;line-height:1.02;
+    font-size:clamp(2.6rem,7vw,6rem);
+    letter-spacing:-.01em;
+    background:linear-gradient(180deg,#ffffff, #bcd2ff);
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+  }
+  h2.head{
+    font-weight:900;line-height:1.05;
+    font-size:clamp(2rem,4.6vw,3.4rem);
+    letter-spacing:-.01em;
+    margin-bottom:3.2vh;
+  }
+  .sub{
+    font-weight:400;color:var(--muted);
+    font-size:clamp(1.1rem,2vw,1.6rem);
+    line-height:1.5;max-width:46ch;
+  }
+
+  /* title slide specifics */
+  .titleSlide{justify-content:center}
+  .titleSlide .brandline{
+    display:flex;align-items:center;gap:1rem;margin-bottom:3vh;
+    font-weight:800;letter-spacing:.06em;color:var(--muted);
+    font-size:clamp(1rem,1.7vw,1.35rem);
+  }
+  .chip-scania{
+    background:linear-gradient(135deg,#1b3b7a,#2a5bbf);
+    border:1px solid var(--line2);border-radius:10px;
+    padding:.35rem .9rem;color:#eaf2ff;font-weight:900;letter-spacing:.02em;
+  }
+  .note{
+    margin-top:4.5vh;display:inline-flex;align-items:center;gap:.8rem;
+    background:rgba(255,180,84,.1);border:1px solid rgba(255,180,84,.3);
+    color:var(--warn);border-radius:12px;padding:.9rem 1.4rem;
+    font-weight:700;font-size:clamp(1rem,1.7vw,1.3rem);
+    width:fit-content;
+  }
+
+  /* content cards grid */
+  .grid{
+    display:grid;gap:1.6vh 1.6vw;
+    grid-template-columns:repeat(auto-fit,minmax(260px,1fr));
+    align-content:start;
+  }
+  .card{
+    background:linear-gradient(180deg,var(--panel),var(--panel2));
+    border:1px solid var(--line);
+    border-radius:18px;padding:2.4vh 1.8vw;
+    box-shadow:var(--shadow);
+    display:flex;flex-direction:column;gap:.7rem;
+  }
+  .card .ct{font-weight:800;font-size:clamp(1.05rem,1.7vw,1.35rem);display:flex;align-items:center;gap:.7rem}
+  .card .ct .ico{
+    width:2.2rem;height:2.2rem;flex:0 0 auto;border-radius:10px;
+    display:grid;place-items:center;font-size:1.15rem;
+    background:var(--accent-soft);border:1px solid var(--line2);
+  }
+  .card p, .card li{color:var(--muted);font-size:clamp(.98rem,1.45vw,1.18rem);line-height:1.55}
+  .card ul{list-style:none;display:flex;flex-direction:column;gap:.45rem}
+  .card li{position:relative;padding-inline-start:1.3rem}
+  .card li::before{content:"";position:absolute;inline-size:.5rem;block-size:.5rem;inset-inline-start:0;top:.62em;border-radius:50%;background:var(--accent2)}
+  .card strong{color:var(--ink);font-weight:700}
+
+  /* single flowing narrative block */
+  .flow{
+    display:flex;flex-direction:column;gap:1.6vh;max-width:74ch;
+    font-size:clamp(1.15rem,2vw,1.55rem);line-height:1.65;color:var(--ink);
+  }
+  .flow .lead{color:var(--muted)}
+  .flow .hl{color:var(--accent2);font-weight:700}
+  .flow .hlw{color:var(--warn);font-weight:700}
+
+  /* measurements pills */
+  .pills{display:flex;flex-wrap:wrap;gap:.7rem;margin-top:.4rem}
+  .pill{
+    background:rgba(255,255,255,.04);border:1px solid var(--line2);
+    border-radius:999px;padding:.5rem 1rem;font-size:clamp(.9rem,1.3vw,1.1rem);
+    color:var(--muted);font-weight:600;
+  }
+  .pill b{color:var(--ink)}
+
+  /* contacts / data tables */
+  .rows{display:flex;flex-direction:column;gap:1rem;max-width:60ch}
+  .row{
+    display:flex;align-items:center;justify-content:space-between;gap:1rem;
+    background:linear-gradient(180deg,var(--panel),var(--panel2));
+    border:1px solid var(--line);border-radius:14px;padding:1.2rem 1.4rem;
+  }
+  .row .rl{font-weight:800;font-size:clamp(1.05rem,1.7vw,1.35rem)}
+  .row .rr{color:var(--accent);font-weight:600;direction:ltr;font-size:clamp(1rem,1.5vw,1.25rem);unicode-bidi:plaintext}
+  .row .rsub{color:var(--muted2);font-weight:500;font-size:.9em;display:block;margin-top:.15rem}
+
+  .tags{display:flex;flex-wrap:wrap;gap:.55rem}
+  .tag{background:var(--accent-soft);border:1px solid var(--line2);color:#cfe4ff;border-radius:999px;padding:.35rem .9rem;font-weight:700;font-size:clamp(.9rem,1.3vw,1.1rem)}
+
+  /* tasks */
+  .tasks{display:flex;flex-direction:column;gap:1.3vh;max-width:64ch}
+  .task{
+    display:flex;align-items:flex-start;gap:1.1rem;
+    background:linear-gradient(180deg,var(--panel),var(--panel2));
+    border:1px solid var(--line);border-radius:16px;padding:1.6vh 1.6rem;
+    font-size:clamp(1.1rem,1.8vw,1.4rem);line-height:1.5;
+  }
+  .task .n{
+    flex:0 0 auto;width:2.6rem;height:2.6rem;border-radius:12px;
+    display:grid;place-items:center;font-weight:900;font-size:1.25rem;
+    background:var(--accent-soft);color:var(--accent);border:1px solid var(--line2);
+  }
+
+  .horses{display:flex;flex-wrap:wrap;gap:1.6vw;align-items:stretch}
+  .horse{
+    flex:1 1 300px;
+    background:linear-gradient(180deg,var(--panel),var(--panel2));
+    border:1px solid var(--line);border-radius:18px;padding:2.6vh 1.9vw;
+    box-shadow:var(--shadow);display:flex;flex-direction:column;gap:1rem;
+  }
+  .horse .ht{font-weight:900;font-size:clamp(1.4rem,2.4vw,1.9rem);display:flex;align-items:center;gap:.7rem}
+  .horse .ht .ton{background:linear-gradient(135deg,#1b3b7a,#2a5bbf);border-radius:10px;padding:.2rem .7rem;font-size:.8em}
+  .metricrow{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:.6rem 0;font-size:clamp(1rem,1.5vw,1.25rem)}
+  .metricrow:last-child{border-bottom:0}
+  .metricrow .mk{color:var(--muted)}
+  .metricrow .mv{font-weight:800;direction:ltr;unicode-bidi:plaintext}
+
+  /* footer / nav */
+  .footer{
+    position:fixed;bottom:0;right:0;left:0;z-index:30;
+    display:flex;align-items:center;justify-content:space-between;
+    padding:1.4vh 3vw;pointer-events:none;
+  }
+  .brandmark{display:flex;align-items:center;gap:.6rem;color:var(--muted2);font-weight:800;letter-spacing:.05em;font-size:.95rem}
+  .brandmark .d{width:.5rem;height:.5rem;border-radius:50%;background:var(--accent2)}
+  .nav{display:flex;align-items:center;gap:.8rem;pointer-events:auto}
+  .nav button{
+    width:3rem;height:3rem;border-radius:50%;
+    background:rgba(255,255,255,.06);border:1px solid var(--line2);
+    color:var(--ink);font-size:1.3rem;cursor:pointer;
+    display:grid;place-items:center;transition:.18s;
+  }
+  .nav button:hover:not(:disabled){background:var(--accent);border-color:var(--accent);transform:translateY(-2px)}
+  .nav button:disabled{opacity:.3;cursor:not-allowed}
+  .counter{
+    min-width:5.5rem;text-align:center;font-weight:800;letter-spacing:.08em;
+    color:var(--muted);font-variant-numeric:tabular-nums;font-size:1.05rem;
+    direction:ltr;
+  }
+  .counter b{color:var(--ink);font-size:1.25rem}
+
+  /* dots */
+  .dots{position:fixed;bottom:2vh;left:50%;transform:translateX(-50%);z-index:31;display:flex;gap:.5rem;pointer-events:auto;max-width:60vw;flex-wrap:wrap;justify-content:center;direction:rtl}
+  .dots .dt{width:.55rem;height:.55rem;border-radius:50%;background:rgba(255,255,255,.2);border:0;cursor:pointer;transition:.2s;padding:0}
+  .dots .dt.on{background:var(--accent);width:1.6rem;border-radius:999px}
+
+  .hint{position:fixed;top:2vh;left:3vw;color:var(--muted2);font-size:.85rem;z-index:32;opacity:.7}
+
+  @media (max-width:640px){
+    .slide{padding:9vh 7vw 15vh}
+    .footer{padding:1.2vh 5vw}
+    .nav button{width:2.6rem;height:2.6rem}
+    .hint{display:none}
+    h1.title{font-size:clamp(2.4rem,10vw,3.4rem)}
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone@7/babel.min.js"></script>
+
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useCallback, useRef } = React;
+
+/* ---------- Slide content components ---------- */
+
+function TitleSlide(){
+  return (
+    <div className="slide titleSlide">
+      <div className="brandline">
+        <span className="chip-scania">SCANIA</span>
+        <span>·</span>
+        <span>PDI</span>
+        <span>·</span>
+        <span>אשכולית</span>
+      </div>
+      <h1 className="title">תהליך רישוי<br/>משאיות</h1>
+      <p className="sub" style={{marginTop:'2.5vh'}}>מדריך תהליכי מלא, שלב אחר שלב, מפתיחת הרישיון הראשוני ועד לרישיון הקבוע ואישור הוואוצ׳ר.</p>
+      <div className="note">⚠️ התהליך מיועד למשאיות בלבד</div>
+    </div>
+  );
+}
+
+function StepSlide({ step, title, sub, children }){
+  return (
+    <div className="slide">
+      <div className="kicker">
+        <span className="dot"></span>
+        <span className="num">שלב {step}</span>
+        {sub && <span style={{color:'var(--muted2)',fontWeight:600}}>{sub}</span>}
+      </div>
+      <h2 className="head">{title}</h2>
+      {children}
+    </div>
+  );
+}
+
+function AppendixSlide({ label, title, children }){
+  return (
+    <div className="slide">
+      <div className="kicker">
+        <span className="dot" style={{background:'var(--warn)',boxShadow:'0 0 14px var(--warn)'}}></span>
+        <span className="num" style={{color:'var(--warn)',background:'rgba(255,180,84,.12)'}}>נספח</span>
+        <span style={{color:'var(--muted2)',fontWeight:600}}>{label}</span>
+      </div>
+      <h2 className="head">{title}</h2>
+      {children}
+    </div>
+  );
+}
+
+/* ---------- The slides array ---------- */
+
+const slides = [
+  <TitleSlide />,
+
+  /* שלב א */
+  <StepSlide step="א" title="פתיחה מול אורן">
+    <div className="flow">
+      <p className="lead">בסוף היום, פנייה ל<span className="hl">אורן, מנהל ה־PDI</span>: "יש לך משהו למחר?"</p>
+      <div className="grid" style={{marginTop:'1vh'}}>
+        <div className="card">
+          <div className="ct"><span className="ico">📄</span>רישיון ראשוני</div>
+          <p>אורן מוציא רישיון ראשוני. <strong>הכול נכון</strong> — חוץ מ<span style={{color:'var(--warn)'}}>מספר ההוראה</span>.</p>
+        </div>
+        <div className="card">
+          <div className="ct"><span className="ico">🎟️</span>וואוצ׳ר</div>
+          <p>יחד עם הרישיון הראשוני, אורן נותן גם <strong>וואוצ׳ר</strong> לתהליך.</p>
+        </div>
+      </div>
+    </div>
+  </StepSlide>,
+
+  /* שלב ב */
+  <StepSlide step="ב" title="בדיקת מעבדה">
+    <div className="grid">
+      <div className="card">
+        <div className="ct"><span className="ico">📸</span>תיעוד ותוויות</div>
+        <ul>
+          <li>4 תמונות היקפיות</li>
+          <li>מידות צמיגים</li>
+          <li>תווית רכב</li>
+          <li>מספר צלחת והטבעה — <strong>תואמים</strong></li>
+        </ul>
+      </div>
+      <div className="card">
+        <div className="ct"><span className="ico">🛡️</span>ציוד כבד ושילדה</div>
+        <ul>
+          <li>בדיקת כריות אוויר לציוד כבד — <strong>אין</strong></li>
+          <li>מספר שילדה על התווית בדלת ליד הנהג</li>
+          <li>הבודק מוודא תאימות לרישיון הראשוני</li>
+        </ul>
+      </div>
+      <div className="card">
+        <div className="ct"><span className="ico">📐</span>מידות</div>
+        <div className="pills">
+          <span className="pill">שלוחה קדמית</span>
+          <span className="pill">רוחק סרנים</span>
+          <span className="pill">שלוחה אחורית</span>
+          <span className="pill">מרכז כובד</span>
+          <span className="pill">גובה צלחת</span>
+          <span className="pill">רדיוס קדמי ואחורי</span>
+          <span className="pill">גובה</span>
+          <span className="pill">רוחב</span>
+        </div>
+      </div>
+    </div>
+  </StepSlide>,
+
+  /* שלב ג */
+  <StepSlide step="ג" title="קבלת מעבדה">
+    <div className="flow">
+      <p><span className="hl">המעבדה נשלחת במייל</span> אחרי הבדיקה, עם כל רשימת עובדי המעבדה מכותבת.</p>
+      <div className="grid" style={{marginTop:'1vh'}}>
+        <div className="card">
+          <div className="ct"><span className="ico">🖨️</span>הדפסה ותיוק</div>
+          <p>מדפיס, מכניס לתיקייה, ומצרף <strong>לרדיו ולרישיון הראשוני</strong>.</p>
+        </div>
+        <div className="card">
+          <div className="ct"><span className="ico">📁</span>תיקיית סקניה</div>
+          <p>הרישיון הראשוני נכנס ל<strong>תיקיית סקניה</strong>, וממתין לתעודות.</p>
+        </div>
+      </div>
+    </div>
+  </StepSlide>,
+
+  /* שלב ד */
+  <StepSlide step="ד" title="רישיון זמני וטסט">
+    <div className="flow">
+      <p className="lead">ממתין להודעה מסקניה שיש <span className="hl">רישיון זמני כחול</span>.</p>
+      <div className="grid" style={{marginTop:'1vh'}}>
+        <div className="card">
+          <div className="ct"><span className="ico">🔧</span>טסט</div>
+          <p>לאחר קבלת הרישיון הזמני — מבצע <strong>טסט</strong>.</p>
+        </div>
+        <div className="card">
+          <div className="ct"><span className="ico">🔗</span>שיוך אצל רימה</div>
+          <p>הולך ל<strong>רימה</strong> שעושה <strong>שיוך</strong>, ומעביר את התיק.</p>
+        </div>
+        <div className="card">
+          <div className="ct"><span className="ico">🗂️</span>התיק</div>
+          <p>בתיק נמצא כעת <strong>הרישיון הזמני</strong>.</p>
+        </div>
+      </div>
+    </div>
+  </StepSlide>,
+
+  /* שלב ה */
+  <StepSlide step="ה" title="מסמכי לקוח">
+    <div className="grid">
+      <div className="card">
+        <div className="ct"><span className="ico">📞</span>יצירת קשר</div>
+        <p>מבקש מהפקידה את <strong>טלפון הלקוח</strong> ויוצר קשר.</p>
+      </div>
+      <div className="card">
+        <div className="ct"><span className="ico">📨</span>הלקוח שולח</div>
+        <ul>
+          <li>ייפוי כוח</li>
+          <li>ביטוח רכב</li>
+          <li>חותמת לטופס הטסט</li>
+        </ul>
+      </div>
+      <div className="card">
+        <div className="ct"><span className="ico">🖨️</span>למעבדה — לרישיון קבוע</div>
+        <ul>
+          <li>רישיון זמני</li>
+          <li>ייפוי כוח</li>
+          <li>ביטוח רכב</li>
+          <li>טופס סיומת טסט</li>
+          <li>טופס תעודה</li>
+        </ul>
+      </div>
+    </div>
+  </StepSlide>,
+
+  /* שלב ו */
+  <StepSlide step="ו" title="בדיקה וסגירה">
+    <div className="grid">
+      <div className="card">
+        <div className="ct"><span className="ico">✅</span>בדיקת תאימות מעבדה</div>
+        <ul>
+          <li>תא שינה</li>
+          <li>מתלה אוויר</li>
+          <li>6X4</li>
+          <li>50 טון לפי הראשוני</li>
+          <li>כל הפרטים לגופו של הראשוני</li>
+        </ul>
+      </div>
+      <div className="card">
+        <div className="ct"><span className="ico">🏁</span>סגירת התהליך</div>
+        <ul>
+          <li>מקבל <strong>רישיון קבוע</strong></li>
+          <li>שולח למייל <strong>אורן</strong> ולוואטסאפ <strong>סקניה</strong></li>
+          <li>אורן <strong>מאשר את הוואוצ׳ר</strong></li>
+          <li style={{color:'var(--accent2)'}}><strong>סוף התהליך</strong></li>
+        </ul>
+      </div>
+    </div>
+  </StepSlide>,
+
+  /* נספח אנשי קשר */
+  <AppendixSlide label="אנשי קשר" title="אנשי קשר">
+    <div style={{display:'flex',gap:'2vw',flexWrap:'wrap',alignItems:'flex-start'}}>
+      <div className="rows" style={{flex:'1 1 340px'}}>
+        <div className="row">
+          <div className="rl">אורן<span className="rsub">מנהל PDI</span></div>
+          <div className="rr">levy.oren@scania.co.il</div>
+        </div>
+        <div className="row">
+          <div className="rl">וואטסאפ סקניה</div>
+          <div className="rr">054-2308516</div>
+        </div>
+        <div className="row">
+          <div className="rl">שיוך<span className="rsub">רימה עושה את השיוך</span></div>
+          <div className="rr">רימה</div>
+        </div>
+      </div>
+      <div style={{flex:'1 1 320px',display:'flex',flexDirection:'column',gap:'1.6vh'}}>
+        <div className="card">
+          <div className="ct"><span className="ico">🔔</span>מודיעים על רישיון זמני</div>
+          <div className="tags" style={{marginTop:'.4rem'}}>
+            <span className="tag">אפרת</span><span className="tag">רימה</span><span className="tag">רינת</span><span className="tag">סיגל</span><span className="tag">שלי</span>
+          </div>
+        </div>
+        <div className="card">
+          <div className="ct"><span className="ico">🧪</span>מעבדת אריאל</div>
+          <div className="tags" style={{marginTop:'.4rem'}}>
+            <span className="tag">רינת</span><span className="tag">טליה</span><span className="tag">דניאל</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </AppendixSlide>,
+
+  /* נספח נתוני סוסים */
+  <AppendixSlide label="נתונים" title="נתוני סוסים">
+    <div className="horses">
+      <div className="horse">
+        <div className="ht"><span className="ton">50 טון</span>סוס</div>
+        <div className="metricrow"><span className="mk">רוחק סרנים</span><span className="mv">4230</span></div>
+        <div className="metricrow"><span className="mk">מיכל דלק</span><span className="mv">525 ליטר</span></div>
+      </div>
+      <div className="horse">
+        <div className="ht"><span className="ton">46 טון</span>סוס</div>
+        <div className="metricrow"><span className="mk">סרן</span><span className="mv">מתרומם</span></div>
+        <div className="metricrow"><span className="mk">רוחק סרנים</span><span className="mv">3430</span></div>
+        <div className="metricrow"><span className="mk">מיכל דלק</span><span className="mv">460 ליטר</span></div>
+      </div>
+    </div>
+    <div className="note" style={{marginTop:'3vh',color:'var(--accent2)',background:'rgba(56,224,200,.1)',borderColor:'rgba(56,224,200,.3)'}}>
+      ⚖️ בשקילה קדמית — הסרן האחורי עד הפס של השקילה, לאיזון
+    </div>
+  </AppendixSlide>,
+
+  /* נספח משימות פתוחות */
+  <AppendixSlide label="לפעולה" title="משימות פתוחות">
+    <div className="tasks">
+      <div className="task"><span className="n">1</span><span>לוודא שכל מיילי המעבדה נכונים.</span></div>
+      <div className="task"><span className="n">2</span><span>לשאול בסקניה — <b style={{color:'var(--accent2)'}}>מייל מול וואטסאפ</b> — מה נוח יותר.</span></div>
+      <div className="task"><span className="n">3</span><span>לבדוק רוחק סרנים — <b style={{color:'var(--warn)'}}>427 או 423</b>.</span></div>
+    </div>
+  </AppendixSlide>,
+];
+
+/* ---------- Deck controller ---------- */
+
+function Deck(){
+  const [i, setI] = useState(0);
+  const n = slides.length;
+  const touch = useRef(null);
+
+  const go = useCallback((d)=> setI(v => Math.min(n-1, Math.max(0, v+d))), [n]);
+  const goto = useCallback((idx)=> setI(Math.min(n-1, Math.max(0, idx))), [n]);
+
+  useEffect(()=>{
+    const onKey = (e)=>{
+      if(e.key==='ArrowLeft'){ go(1); }         /* RTL: left = forward */
+      else if(e.key==='ArrowRight'){ go(-1); }   /* RTL: right = back */
+      else if(e.key==='ArrowDown'||e.key===' '||e.key==='PageDown'){ e.preventDefault(); go(1); }
+      else if(e.key==='ArrowUp'||e.key==='PageUp'){ e.preventDefault(); go(-1); }
+      else if(e.key==='Home'){ goto(0); }
+      else if(e.key==='End'){ goto(n-1); }
+    };
+    window.addEventListener('keydown', onKey);
+    return ()=> window.removeEventListener('keydown', onKey);
+  }, [go, goto, n]);
+
+  const onTouchStart = (e)=> touch.current = e.changedTouches[0].clientX;
+  const onTouchEnd = (e)=>{
+    if(touch.current==null) return;
+    const dx = e.changedTouches[0].clientX - touch.current;
+    if(Math.abs(dx) > 50){ go(dx < 0 ? 1 : -1); }  /* swipe left = forward in RTL */
+    touch.current = null;
+  };
+
+  /* track math is LTR: to show slide i, shift left by i*100vw */
+  const trackStyle = { transform:`translateX(${-i*100}vw)` };
+  const progressStyle = { transform:`scaleX(${n>1 ? i/(n-1) : 0})` };
+
+  return (
+    <div className="deck" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+      <div className="progress" style={progressStyle}></div>
+      <div className="hint">← → למעבר בין שקופיות</div>
+
+      <div className="track" style={trackStyle}>
+        {slides.map((s, idx)=> <React.Fragment key={idx}>{s}</React.Fragment>)}
+      </div>
+
+      <div className="dots">
+        {slides.map((_, idx)=>(
+          <button key={idx} className={"dt"+(idx===i?" on":"")} onClick={()=>goto(idx)} aria-label={"שקופית "+(idx+1)}></button>
+        ))}
+      </div>
+
+      <div className="footer">
+        <div className="brandmark"><span className="d"></span>SCANIA · PDI · רישוי משאיות</div>
+        <div className="nav">
+          {/* RTL: back button points right (›), forward points left (‹) */}
+          <button onClick={()=>go(-1)} disabled={i===0} aria-label="הקודם">›</button>
+          <div className="counter"><b>{i+1}</b> / {n}</div>
+          <button onClick={()=>go(1)} disabled={i===n-1} aria-label="הבא">‹</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<Deck />);
+</script>
+</body>
+</html>
